@@ -140,4 +140,4 @@ app/src/main/java/com/xzd1314/aichat/
 
 ## License
 
-[MIT](LICENSE)
+[GPL-3.0](LICENSE)
