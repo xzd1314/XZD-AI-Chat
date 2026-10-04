@@ -199,6 +199,64 @@ fun AgentChatScreen(
         }
     }
 
+    // Agent 核心循环：构建消息 → 调 LLM → 保存回复（含命令）
+    // send() 和 executeCommand() 都调用此函数，实现命令执行后自动继续分析
+    suspend fun callAgentLLM() {
+        val userSystemPrompt = vm.store.getSystemPrompt()
+        val fullSystemPrompt = "$userSystemPrompt\n\n===== Agent 模式说明 =====\n$AGENT_SYSTEM_PROMPT"
+        val reqMessages = mutableListOf<com.xzd1314.aichat.data.ChatMessage>()
+        reqMessages.add(com.xzd1314.aichat.data.ChatMessage("system", fullSystemPrompt, 0L))
+        // 用最新状态，找到第一条 user 消息，跳过欢迎消息等 assistant 内容
+        val latestConv = vm.agentConvs.value.firstOrNull { it.id == conversationId }
+        val allMsgs = latestConv?.messages ?: emptyList()
+        val firstUserIdx = allMsgs.indexOfFirst { it.role == "user" }
+        val validMsgs = if (firstUserIdx >= 0) allMsgs.drop(firstUserIdx) else allMsgs
+        validMsgs.forEach { msg ->
+            when (msg.role) {
+                "user" -> reqMessages.add(com.xzd1314.aichat.data.ChatMessage("user", msg.content, 0L))
+                "assistant" -> {
+                    val c = if (msg.command != null) "${msg.content}\n[命令: ${msg.command}]" else msg.content
+                    reqMessages.add(com.xzd1314.aichat.data.ChatMessage("assistant", c, 0L))
+                }
+                "result" -> {
+                    val output = (msg.resultStdout?.takeIf { it.isNotBlank() } ?: msg.resultStderr ?: "").take(2000)
+                    reqMessages.add(com.xzd1314.aichat.data.ChatMessage("user",
+                        "执行结果（exit=${msg.resultExitCode}，模式=${msg.resultMode ?: "normal"}）：\n$output", 0L))
+                }
+            }
+        }
+        // 合并连续的 user 消息（result 后紧跟新 user 提问），避免 API 报错
+        val merged = mutableListOf<com.xzd1314.aichat.data.ChatMessage>()
+        reqMessages.forEach { m ->
+            if (m.role == "user" && merged.lastOrNull()?.role == "user") {
+                merged[merged.lastIndex] = com.xzd1314.aichat.data.ChatMessage("user",
+                    merged.last().content + "\n\n" + m.content, 0L)
+            } else {
+                merged.add(m)
+            }
+        }
+        val result = LLMClient.chat(
+            preset = vm.store.getResolvedProvider(),
+            baseUrl = vm.store.getResolvedBaseUrl(),
+            apiKey = vm.store.getApiKey(),
+            model = vm.store.getResolvedModelName(),
+            messages = merged,
+            temperature = 0.3f,
+            maxTokens = 1024,
+            reasoningEffort = vm.store.getReasoningEffort().ifBlank { null }
+        )
+        result.onSuccess { (content, reasoning) ->
+            val cmd = extractCommand(content)
+            vm.addAgentMessage(conversationId, AgentMessage(
+                role = "assistant", content = content, command = cmd,
+                reasoning = reasoning?.takeIf { it.isNotBlank() }
+            ))
+        }.onFailure { e ->
+            vm.addAgentMessage(conversationId, AgentMessage(role = "assistant", content = "请求失败：${e.message}"))
+        }
+        sending = false
+    }
+
     fun send() {
         val text = input.trim()
         if (text.isEmpty() || sending || conv == null) return
@@ -233,64 +291,7 @@ fun AgentChatScreen(
 
         vm.addAgentMessage(conversationId, AgentMessage(role = "user", content = text))
         sending = true
-        scope.launch {
-            val userSystemPrompt = vm.store.getSystemPrompt()
-            val fullSystemPrompt = "$userSystemPrompt\n\n===== Agent 模式说明 =====\n$AGENT_SYSTEM_PROMPT"
-            // 构建完整对话历史（含命令执行结果），支持多步任务
-            // 注意：必须用 vm.agentConvs.value 取最新状态，不能用 composable 捕获的 conv（旧状态不含刚发的 user 消息）
-            val latestConv = vm.agentConvs.value.firstOrNull { it.id == conversationId }
-            val reqMessages = mutableListOf<com.xzd1314.aichat.data.ChatMessage>()
-            reqMessages.add(com.xzd1314.aichat.data.ChatMessage("system", fullSystemPrompt, 0L))
-            // 找到第一条 user 消息，跳过之前的欢迎消息等 assistant 内容
-            // GLM 等 API 要求 assistant 必须跟在 user 后面，不能以 assistant 开头
-            val allMsgs = latestConv?.messages ?: emptyList()
-            val firstUserIdx = allMsgs.indexOfFirst { it.role == "user" }
-            val validMsgs = if (firstUserIdx >= 0) allMsgs.drop(firstUserIdx) else allMsgs
-            validMsgs.forEach { msg ->
-                when (msg.role) {
-                    "user" -> reqMessages.add(com.xzd1314.aichat.data.ChatMessage("user", msg.content, 0L))
-                    "assistant" -> {
-                        val c = if (msg.command != null) "${msg.content}\n[命令: ${msg.command}]" else msg.content
-                        reqMessages.add(com.xzd1314.aichat.data.ChatMessage("assistant", c, 0L))
-                    }
-                    "result" -> {
-                        val output = (msg.resultStdout?.takeIf { it.isNotBlank() } ?: msg.resultStderr ?: "").take(2000)
-                        reqMessages.add(com.xzd1314.aichat.data.ChatMessage("user",
-                            "执行结果（exit=${msg.resultExitCode}，模式=${msg.resultMode ?: "normal"}）：\n$output", 0L))
-                    }
-                }
-            }
-            // 合并连续的 user 消息（result 后紧跟新 user 提问），避免 API 报错
-            val merged = mutableListOf<com.xzd1314.aichat.data.ChatMessage>()
-            reqMessages.forEach { m ->
-                if (m.role == "user" && merged.lastOrNull()?.role == "user") {
-                    merged[merged.lastIndex] = com.xzd1314.aichat.data.ChatMessage("user",
-                        merged.last().content + "\n\n" + m.content, 0L)
-                } else {
-                    merged.add(m)
-                }
-            }
-            val result = LLMClient.chat(
-                preset = vm.store.getResolvedProvider(),
-                baseUrl = vm.store.getResolvedBaseUrl(),
-                apiKey = vm.store.getApiKey(),
-                model = vm.store.getResolvedModelName(),
-                messages = merged,
-                temperature = 0.3f,
-                maxTokens = 1024,
-                reasoningEffort = vm.store.getReasoningEffort().ifBlank { null }
-            )
-            result.onSuccess { (content, reasoning) ->
-                val cmd = extractCommand(content)
-                vm.addAgentMessage(conversationId, AgentMessage(
-                    role = "assistant", content = content, command = cmd,
-                    reasoning = reasoning?.takeIf { it.isNotBlank() }
-                ))
-            }.onFailure { e ->
-                vm.addAgentMessage(conversationId, AgentMessage(role = "assistant", content = "请求失败：${e.message}"))
-            }
-            sending = false
-        }
+        scope.launch { callAgentLLM() }
     }
 
     fun executeCommand(index: Int) {
@@ -315,6 +316,9 @@ fun AgentChatScreen(
                 resultExitCode = r.exitCode,
                 resultMode = r.mode
             ))
+            // 命令执行完自动回调 LLM，形成 Agent 循环：LLM→命令→结果→LLM分析→...
+            sending = true
+            callAgentLLM()
         }
     }
 

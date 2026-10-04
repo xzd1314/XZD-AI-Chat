@@ -31,7 +31,18 @@
 
 ## 截图
 
-> 待补充
+### 对话模式
+支持思考过程展示、多种聊天风格、角色卡人格预设。
+
+![对话模式](screenshots/chat-mode.jpg)
+
+### Agent 模式
+通过自然语言控制手机，支持 Shizuku / Root 提权，命令执行后 AI 自动分析结果并继续。
+
+![Agent 模式](screenshots/agent-mode.jpg)
+
+### 关于页面
+![关于页面](screenshots/about-page.jpg)
 
 ## 构建
 
