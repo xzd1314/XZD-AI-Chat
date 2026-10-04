@@ -237,11 +237,13 @@ fun AgentChatScreen(
             val userSystemPrompt = vm.store.getSystemPrompt()
             val fullSystemPrompt = "$userSystemPrompt\n\n===== Agent 模式说明 =====\n$AGENT_SYSTEM_PROMPT"
             // 构建完整对话历史（含命令执行结果），支持多步任务
+            // 注意：必须用 vm.agentConvs.value 取最新状态，不能用 composable 捕获的 conv（旧状态不含刚发的 user 消息）
+            val latestConv = vm.agentConvs.value.firstOrNull { it.id == conversationId }
             val reqMessages = mutableListOf<com.xzd1314.aichat.data.ChatMessage>()
             reqMessages.add(com.xzd1314.aichat.data.ChatMessage("system", fullSystemPrompt, 0L))
             // 找到第一条 user 消息，跳过之前的欢迎消息等 assistant 内容
             // GLM 等 API 要求 assistant 必须跟在 user 后面，不能以 assistant 开头
-            val allMsgs = conv?.messages ?: emptyList()
+            val allMsgs = latestConv?.messages ?: emptyList()
             val firstUserIdx = allMsgs.indexOfFirst { it.role == "user" }
             val validMsgs = if (firstUserIdx >= 0) allMsgs.drop(firstUserIdx) else allMsgs
             validMsgs.forEach { msg ->
