@@ -1,13 +1,29 @@
+import com.github.megatronking.stringfog.plugin.StringFogExtension
+import com.github.megatronking.stringfog.plugin.StringFogMode
+import com.github.megatronking.stringfog.plugin.kg.RandomKeyGenerator
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
-// 签名配置：如果项目根目录有 keystore.properties 则使用，否则使用 debug 签名
-val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = java.util.Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+apply(plugin = "stringfog")
+
+configure<StringFogExtension> {
+    implementation = "com.github.megatronking.stringfog.xor.StringFogImpl"
+    enable = true
+    // 全应用字符串加密（含根包 MainActivity 的反篡改代码）
+    fogPackages = arrayOf(
+        "com.xzd1314.aichat",
+        "com.xzd1314.aichat.data",
+        "com.xzd1314.aichat.ui",
+        "com.xzd1314.aichat.util",
+        "com.xzd1314.aichat.net",
+        "com.xzd1314.aichat.agent",
+        "com.xzd1314.aichat.security"
+    )
+    kg = RandomKeyGenerator()
+    mode = StringFogMode.bytes
 }
 
 android {
@@ -16,23 +32,21 @@ android {
 
     defaultConfig {
         applicationId = "com.xzd1314.aichat"
-        minSdk = 26
+        minSdk = 23
         targetSdk = 35
         versionCode = 4
         versionName = "1.2.1"
     }
 
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
-            create("release") {
-                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
-            }
+        create("release") {
+            storeFile = rootProject.file("xzd-release.jks")
+            storePassword = "xzd1314"
+            keyAlias = "xzd"
+            keyPassword = "xzd1314"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -40,12 +54,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
+                "proguard-final.pro"
             )
         }
         debug {
@@ -55,9 +68,14 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
+        // 禁用 Compose source information——防止编译器在 DEX 中嵌入 "类名 (文件名:行号)" 字符串
+        freeCompilerArgs += listOf(
+            "-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=false"
+        )
     }
     buildFeatures {
         compose = true
@@ -72,6 +90,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -89,4 +108,6 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
     // WorkManager（定时任务）
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    // StringFog 运行时解密（XOR 算法）
+    implementation("com.github.megatronking.stringfog:xor:5.0.0")
 }
