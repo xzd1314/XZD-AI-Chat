@@ -1,10 +1,8 @@
 package com.xzd1314.aichat.agent
 
 import android.content.Intent
-import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import androidx.annotation.RequiresApi
 import com.xzd1314.aichat.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,9 +12,7 @@ import kotlinx.coroutines.launch
  * 快捷指令磁贴
  * 在下拉菜单中显示"XZD 快捷指令"，点击启动应用并跳转到 Agent 页
  * 长按可以配置快捷命令
- * 需要 Android 7.0+（API 24），低版本系统不加载此服务
  */
-@RequiresApi(Build.VERSION_CODES.N)
 class QuickCommandTileService : TileService() {
 
     override fun onStartListening() {

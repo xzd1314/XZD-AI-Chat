@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         applicationId = "com.xzd1314.aichat"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 35
         versionCode = 4
         versionName = "1.2.1"
@@ -68,7 +68,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -90,7 +89,6 @@ android {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

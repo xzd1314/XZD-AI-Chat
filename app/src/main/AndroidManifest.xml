@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Shizuku 库声明 minSdk 24，实际兼容 API 23+，强制覆盖 -->
-    <uses-sdk tools:overrideLibrary="rikka.shizuku.api,rikka.shizuku.provider,rikka.shizuku.shared,rikka.shizuku.aidl" />
-
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 所有文件访问权限（Agent 模式需要） -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
