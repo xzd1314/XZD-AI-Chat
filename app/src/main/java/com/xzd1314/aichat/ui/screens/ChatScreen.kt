@@ -6,6 +6,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +81,7 @@ import com.xzd1314.aichat.ui.components.CircularAvatar
 import com.xzd1314.aichat.util.Util
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     vm: AppViewModel,
@@ -101,6 +103,8 @@ fun ChatScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showConvList by remember { mutableStateOf(false) }
     var selectedImageUri by remember(conversation.id) { mutableStateOf<String?>(null) }
+    var sendJob by remember(conversation.id) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var messageActionIndex by remember { mutableStateOf<Int?>(null) }
 
     val avatarPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -145,7 +149,7 @@ fun ChatScreen(
                 putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "请说话…")
             }
             try { voiceLauncher.launch(intent) } catch (_: Exception) {
-                android.widget.Toast.makeText(context, "当前设备不支持语音输入，请安装语音识别服务", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "当前设备不支持语音输入，请前往「关于」页面查看安装教程", android.widget.Toast.LENGTH_LONG).show()
             }
         } else {
             android.widget.Toast.makeText(context, "需要麦克风权限才能使用语音输入", android.widget.Toast.LENGTH_SHORT).show()
@@ -166,13 +170,17 @@ fun ChatScreen(
         val hasImage = selectedImageUri != null
         if (text.isEmpty() && !hasImage) return
         if (sending) return
+        // 震动反馈
+        if (vm.store.isHapticsEnabled()) {
+            (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator)
+                ?.vibrate(android.os.VibrationEffect.createOneShot(30, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        }
         input = ""
         errorMsg = null
-        // 图片和文字一起发送（同一条消息）
         vm.addMessage(conversation.id, "user", text, imageUri = selectedImageUri)
         selectedImageUri = null
         sending = true
-        scope.launch {
+        sendJob = scope.launch {
             val conv = vm.getById(conversation.id) ?: return@launch
             val (reqMessages, sentCount, sentTokens) = LLMClient.buildRequestMessages(
                 vm.store.getSystemPrompt(),
@@ -194,14 +202,38 @@ fun ChatScreen(
             result.onSuccess { (reply, reasoning) ->
                 vm.addMessage(conversation.id, "assistant", reply.trim(), reasoning)
             }.onFailure { e ->
-                errorMsg = e.message ?: "请求失败"
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    errorMsg = e.message ?: "请求失败"
+                }
             }
             sending = false
+            sendJob = null
         }
     }
 
+    fun stopSending() {
+        sendJob?.cancel()
+        sendJob = null
+        sending = false
+    }
+
+    fun regenerate() {
+        // 删除最后一条 assistant 消息，重新发送最后一条 user 消息
+        val msgs = conversation.messages
+        val lastAssistantIdx = msgs.indexOfLast { it.role == "assistant" }
+        if (lastAssistantIdx < 0) return
+        val lastUserIdx = msgs.indexOfLast { it.role == "user" }
+        if (lastUserIdx < 0) return
+        val userText = msgs[lastUserIdx].content
+        vm.deleteMessage(conversation.id, lastAssistantIdx)
+        vm.deleteMessage(conversation.id, lastUserIdx)
+        // 重新发送
+        input = userText
+        send()
+    }
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color(style.bgColor),
         topBar = {
             TopAppBar(
                 title = {
@@ -339,14 +371,20 @@ fun ChatScreen(
                 items(conversation.messages.size, key = { i -> conversation.messages[i].ts.toString() + i }) { i ->
                     val m = conversation.messages[i]
                     ChatBubble(
-                        modifier = Modifier,
+                        modifier = Modifier.combinedClickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {},
+                            onLongClick = { messageActionIndex = i }
+                        ),
                         isMine = m.role == "user",
                         text = m.content,
                         time = m.ts,
                         style = style,
                         avatarUri = if (m.role == "user") null else conversation.avatarUri,
                         reasoning = m.reasoning,
-                        imageUri = m.imageUri
+                        imageUri = m.imageUri,
+                        name = conversation.title
                     )
                 }
                 if (sending) {
@@ -449,7 +487,7 @@ fun ChatScreen(
                                     putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "请说话…")
                                 }
                                 try { voiceLauncher.launch(intent) } catch (_: Exception) {
-                                    android.widget.Toast.makeText(context, "当前设备不支持语音输入，请安装语音识别服务", android.widget.Toast.LENGTH_SHORT).show()
+                                    android.widget.Toast.makeText(context, "当前设备不支持语音输入，请前往「关于」页面查看安装教程", android.widget.Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 recordPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -463,7 +501,7 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    placeholder = { Text("给小蓝发消息…") },
+                    placeholder = { Text("给${conversation.title}发消息…") },
                     maxLines = 5,
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f)
@@ -473,18 +511,21 @@ fun ChatScreen(
                     Modifier
                         .size(48.dp)
                         .background(
-                            if (sending) MaterialTheme.colorScheme.surfaceVariant
+                            if (sending) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.primary,
                             CircleShape
                         )
-                        .clickableNoRipple { send() },
+                        .clickableNoRipple {
+                            if (sending) stopSending() else send()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     if (sending) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "停止",
+                            tint = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.size(22.dp)
                         )
                     } else {
                         Icon(
@@ -549,54 +590,88 @@ fun ChatScreen(
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
             }
         )
+    }
+    // 消息操作对话框（长按）
+    messageActionIndex?.let { idx ->
+        val msg = conversation.messages.getOrNull(idx)
+        if (msg != null) {
+            val isLastAssistant = idx == conversation.messages.indexOfLast { it.role == "assistant" }
+            AlertDialog(
+                onDismissRequest = { messageActionIndex = null },
+                title = { Text("消息操作") },
+                text = {
+                    Column {
+                        TextButton(onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("message", msg.content))
+                            android.widget.Toast.makeText(context, "已复制", android.widget.Toast.LENGTH_SHORT).show()
+                            messageActionIndex = null
+                        }) { Text("复制内容") }
+                        if (isLastAssistant && !sending) {
+                            TextButton(onClick = {
+                                messageActionIndex = null
+                                regenerate()
+                            }) { Text("重新生成") }
+                        }
+                        TextButton(onClick = {
+                            vm.deleteMessage(conversation.id, idx)
+                            messageActionIndex = null
+                        }) { Text("删除此消息", color = MaterialTheme.colorScheme.error) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { messageActionIndex = null }) { Text("关闭") }
+                }
+            )
+        }
+    }
 
-        // 多会话快捷侧边栏（BottomSheet）
-        if (showConvList) {
-            val allConvs = vm.convs.value
-            androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { showConvList = false },
-                containerColor = MaterialTheme.colorScheme.surface
+    // 多会话快捷侧边栏（BottomSheet）
+    if (showConvList) {
+        val allConvs = vm.convs.value
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showConvList = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Text("全部会话", modifier = Modifier.padding(horizontal = 20.dp),
+                style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth().height(400.dp).padding(horizontal = 12.dp)
             ) {
-                Text("全部会话", modifier = Modifier.padding(horizontal = 20.dp),
-                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                androidx.compose.foundation.layout.Box(
-                    Modifier.fillMaxWidth().height(400.dp).padding(horizontal = 12.dp)
+                androidx.compose.foundation.lazy.LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    androidx.compose.foundation.lazy.LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(allConvs) { c ->
-                            val isCurrent = c.id == conversation.id
-                            androidx.compose.material3.Card(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    showConvList = false
-                                    onSwitchConversation(c.id)
-                                },
-                                colors = androidx.compose.material3.CardDefaults.cardColors(
-                                    containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    CircularAvatar(uri = c.avatarUri, size = 36.dp)
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(c.title, fontWeight = FontWeight.Medium, maxLines = 1)
-                                        Text(c.messages.lastOrNull()?.content?.take(30) ?: "暂无消息",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                    }
-                                    if (isCurrent) {
-                                        Icon(Icons.Filled.CheckCircle, "当前", tint = MaterialTheme.colorScheme.primary)
-                                    }
+                    items(allConvs) { c ->
+                        val isCurrent = c.id == conversation.id
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                showConvList = false
+                                onSwitchConversation(c.id)
+                            },
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CircularAvatar(uri = c.avatarUri, size = 36.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(c.title, fontWeight = FontWeight.Medium, maxLines = 1)
+                                    Text(c.messages.lastOrNull()?.content?.take(30) ?: "暂无消息",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                }
+                                if (isCurrent) {
+                                    Icon(Icons.Filled.CheckCircle, "当前", tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
             }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }

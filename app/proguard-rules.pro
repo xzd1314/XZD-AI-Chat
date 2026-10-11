@@ -5,27 +5,26 @@
 -classobfuscationdictionary proguard-dict.txt
 -packageobfuscationdictionary proguard-dict.txt
 
-# --- 删除源文件名和行号（逆向者靠这个定位页面） ---
+# --- 彻底删除源文件名、行号、局部变量和 Kotlin @Metadata（逆向者靠 Metadata 恢复 .kt 文件名） ---
 -renamesourcefileattribute ""
--keepattributes !SourceFile,!LineNumberTable,*Annotation*,EnclosingMethod,Signature,InnerClasses
+-keepattributes !SourceFile,!LineNumberTable,!LocalVariableTable,!LocalVariableTypeTable,!RuntimeVisibleAnnotations,!RuntimeVisibleParameterAnnotations,RuntimeInvisibleAnnotations,RuntimeInvisibleParameterAnnotations,AnnotationDefault,EnclosingMethod,Signature,InnerClasses
 
-# --- 激进优化 ---
--optimizationpasses 5
+# --- 激进混淆 ---
+-repackageclasses ''
+-useuniqueclassmembernames
 -allowaccessmodification
 -overloadaggressively
 -mergeinterfacesaggressively
+
+# --- 优化 ---
+-optimizationpasses 5
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
 
 # --- 保留必要入口 ---
 -keep class com.xzd1314.aichat.MainActivity { *; }
 -keep class com.xzd1314.aichat.BuildConfig { *; }
 -keep class **.R$* { *; }
 -keep class **.R { *; }
-
-# --- 字符串加密配置类 ---
--keep class com.xzd1314.aichat.data.ApiConfig { *; }
-
-# --- Kotlin 元数据（最小保留，排除源文件和行号） ---
--keepattributes !SourceFile,!LineNumberTable,!LocalVariableTable,!LocalVariableTypeTable,RuntimeVisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod
 
 # --- Kotlin 协程 ---
 -keepclassmembers class kotlinx.coroutines.** { *; }
@@ -62,19 +61,3 @@
     public void println(...);
     public void print(...);
 }
-
-# --- 高强度混淆选项 ---
--allowaccessmodification
--mergeinterfacesaggressively
--repackageclasses ''
--overloadaggressively
--flattenpackagehierarchy ''
--useuniqueclassmembernames
-
-# --- 移除调试信息（防止逆向分析） ---
--keepattributes !SourceFile,!LineNumberTable,!LocalVariableTable,!LocalVariableTypeTable,!Synthetic,!Deprecated
-
-# --- 优化 ---
--optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
--optimizationpasses 5
--allowaccessmodification

@@ -2,6 +2,7 @@ package com.xzd1314.aichat.agent
 
 import android.content.Context
 import android.content.pm.PackageManager
+import rikka.shizuku.Shizuku
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -23,18 +24,57 @@ data class ShellResult(
 object ShellExecutor {
 
     private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+    private const val SHIZUKU_PERMISSION_CODE = 1001
     private val SU_PATHS = arrayOf(
         "/system/bin/su", "/system/xbin/su", "/sbin/su",
         "/vendor/bin/su", "/data/local/tmp/su", "/su/bin/su",
         "/magisk/.core/bin/su"
     )
 
+    // 持有监听器引用，防止被 GC
+    private val binderListeners = mutableListOf<Shizuku.OnBinderReceivedListener>()
+    private val permissionListeners = mutableListOf<Shizuku.OnRequestPermissionResultListener>()
+
+    // Binder 连接状态（全局，app 启动时初始化）
+    @Volatile private var binderReady = false
+    private val binderReadyCallbacks = mutableListOf<() -> Unit>()
+
+    /**
+     * 在 Application/MainActivity 启动时调用，尽早注册 Shizuku binder 监听器。
+     * 否则进 Agent 页面才注册，binder 可能还没收到，checkSelfPermission 永远返回 DENIED。
+     */
+    fun initShizuku(context: Context) {
+        try {
+            val receivedListener = Shizuku.OnBinderReceivedListener {
+                binderReady = true
+                binderReadyCallbacks.forEach { it() }
+                binderReadyCallbacks.clear()
+            }
+            val deadListener = Shizuku.OnBinderDeadListener {
+                binderReady = false
+            }
+            Shizuku.addBinderReceivedListener(receivedListener)
+            Shizuku.addBinderDeadListener(deadListener)
+            binderListeners.add(receivedListener)
+            // 如果已经连上了，立即标记
+            if (Shizuku.pingBinder()) binderReady = true
+        } catch (_: Exception) {}
+    }
+
+    /** Binder 是否已连接 */
+    fun isBinderReady(): Boolean = binderReady
+
+    /** 注册 binder 就绪回调（如果已就绪立即调用） */
+    fun onBinderReady(callback: () -> Unit) {
+        if (binderReady) callback()
+        else binderReadyCallbacks.add(callback)
+    }
+
     /** 查找 su 可执行文件路径 */
     fun findSu(): String? {
         for (path in SU_PATHS) {
             if (java.io.File(path).exists()) return path
         }
-        // 用 which 检测
         return try {
             val p = ProcessBuilder("sh", "-c", "which su 2>/dev/null").start()
             val out = BufferedReader(InputStreamReader(p.inputStream)).readText().trim()
@@ -96,18 +136,21 @@ object ShellExecutor {
         }
     }
 
-    /** 检测 Shizuku 是否已授权（通过 Shizuku SDK） */
+    /** 检测 Shizuku 服务是否运行（binder 已连接） */
+    fun isShizukuRunning(): Boolean {
+        return try {
+            Shizuku.pingBinder()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 检测 Shizuku 是否已授权 */
     fun isShizukuAuthorized(): Boolean {
         return try {
-            val cls = Class.forName("rikka.shizuku.Shizuku")
-            // 先检查是否已连接
-            val pingMethod = cls.getMethod("pingBinder")
-            val connected = pingMethod.invoke(null) as? Boolean
-            if (connected != true) return false
-            // 再检查权限
-            val checkMethod = cls.getMethod("checkSelfPermission")
-            val perm = checkMethod.invoke(null) as? Int
-            perm == 0
+            // 直接 checkSelfPermission，不预查 pingBinder
+            // pingBinder 在 binder 未收到时会抛异常导致误判未授权
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
             false
         }
@@ -116,21 +159,14 @@ object ShellExecutor {
     /**
      * 注册 Shizuku Binder 连接监听器
      * 当 Shizuku 服务连接成功时回调（用户在 Shizuku 应用授权后会触发）
-     * @return 是否注册成功
      */
     fun registerShizukuListener(onConnected: () -> Unit): Boolean {
         return try {
-            val cls = Class.forName("rikka.shizuku.Shizuku")
-            val listenerCls = Class.forName("rikka.shizuku.Shizuku\$OnBinderReceivedListener")
-            val listener = java.lang.reflect.Proxy.newProxyInstance(
-                listenerCls.classLoader,
-                arrayOf(listenerCls)
-            ) { _, _, _ ->
-                onConnected()
-                null
-            }
-            val addMethod = cls.getMethod("addBinderReceivedListener", listenerCls)
-            addMethod.invoke(null, listener)
+            val listener = Shizuku.OnBinderReceivedListener { onConnected() }
+            Shizuku.addBinderReceivedListener(listener)
+            binderListeners.add(listener)
+            // 如果已经连接，立即回调
+            if (isShizukuRunning()) onConnected()
             true
         } catch (e: Exception) {
             false
@@ -143,33 +179,27 @@ object ShellExecutor {
      */
     fun requestShizukuPermission(onResult: (Boolean) -> Unit): Boolean {
         return try {
-            val cls = Class.forName("rikka.shizuku.Shizuku")
-            // 注册授权结果监听器
-            val resultListenerCls = Class.forName("rikka.shizuku.Shizuku\$OnPermissionGrantResultListener")
-            val resultListener = java.lang.reflect.Proxy.newProxyInstance(
-                resultListenerCls.classLoader,
-                arrayOf(resultListenerCls)
-            ) { _, method, args ->
-                if (method.name == "onPermissionGranted") {
-                    val granted = args?.getOrNull(0) as? Int == 0
-                    onResult(granted)
-                }
-                null
-            }
-            val addResultMethod = cls.getMethod("addPermissionResultListener", resultListenerCls)
-            addResultMethod.invoke(null, resultListener)
-
-            // 检查是否已授权
-            val checkMethod = cls.getMethod("checkSelfPermission")
-            val perm = checkMethod.invoke(null) as? Int
-            if (perm == 0) {
+            // 已授权直接返回
+            if (isShizukuAuthorized()) {
                 onResult(true)
                 return true
             }
-
+            // Shizuku 未运行，无法请求
+            if (!isShizukuRunning()) {
+                onResult(false)
+                return false
+            }
+            // 注册授权结果监听器
+            val listener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+                if (requestCode == SHIZUKU_PERMISSION_CODE) {
+                    val granted = grantResult == PackageManager.PERMISSION_GRANTED
+                    onResult(granted)
+                }
+            }
+            Shizuku.addRequestPermissionResultListener(listener)
+            permissionListeners.add(listener)
             // 请求授权
-            val reqMethod = cls.getMethod("requestPermission", Int::class.javaPrimitiveType)
-            reqMethod.invoke(null, 1001)
+            Shizuku.requestPermission(SHIZUKU_PERMISSION_CODE)
             true
         } catch (e: Exception) {
             false
@@ -181,7 +211,8 @@ object ShellExecutor {
         val mode: String,       // "root" | "shizuku" | "normal"
         val rootManager: String?, // "magisk" | "kernelsu" | "su" | null
         val shizukuInstalled: Boolean,
-        val shizukuAuthorized: Boolean
+        val shizukuAuthorized: Boolean,
+        val shizukuConnecting: Boolean = false  // binder 未就绪，正在连接
     )
 
     fun getPermissionInfo(context: Context): PermissionInfo {
@@ -189,7 +220,8 @@ object ShellExecutor {
         val magisk = hasMagisk()
         val ksu = hasKernelSU()
         val shizukuInstalled = isShizukuInstalled(context)
-        val shizukuAuth = if (shizukuInstalled) isShizukuAuthorized() else false
+        val shizukuAuth = if (shizukuInstalled && binderReady) isShizukuAuthorized() else false
+        val shizukuConnecting = shizukuInstalled && !binderReady && !shizukuAuth
 
         val mode = when {
             root -> "root"
@@ -202,7 +234,7 @@ object ShellExecutor {
             root -> "su"
             else -> null
         }
-        return PermissionInfo(mode, rootManager, shizukuInstalled, shizukuAuth)
+        return PermissionInfo(mode, rootManager, shizukuInstalled, shizukuAuth, shizukuConnecting)
     }
 
     /** 获取当前可用的最高权限模式 */
@@ -232,7 +264,6 @@ object ShellExecutor {
         val lines = script.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() && !it.startsWith("#") }
-        // 拆分 ; 分隔的命令
         val commands = mutableListOf<String>()
         lines.forEach { line ->
             line.split(";").map { it.trim() }.filter { it.isNotBlank() }.forEach { commands.add(it) }
@@ -240,7 +271,6 @@ object ShellExecutor {
         for (cmd in commands) {
             val result = execute(cmd, context)
             results.add(result)
-            // 如果命令失败且不是最后一条，继续执行（脚本模式不中断）
         }
         results
     }
@@ -248,11 +278,9 @@ object ShellExecutor {
     /** 从命令输出中提取文件路径（用于文件抓取） */
     fun extractFilePaths(output: String): List<String> {
         val paths = mutableSetOf<String>()
-        // 匹配绝对路径 /xxx/yyy.zzz
         val regex = Regex("""/(?:[\w.\-]+/)+[\w.\-]+""")
         regex.findAll(output).forEach { match ->
             val path = match.value
-            // 过滤常见非文件路径
             if (!path.startsWith("/proc") && !path.startsWith("/sys") &&
                 !path.startsWith("/dev") && path.length > 5) {
                 paths.add(path)
@@ -290,9 +318,18 @@ object ShellExecutor {
 
     private fun execShizuku(command: String): ShellResult {
         return try {
+            if (!isShizukuAuthorized()) {
+                return execNormal(command).copy(mode = "shizuku(fallback)")
+            }
+            // newProcess 在 Shizuku API 中是 private/hidden，用反射调用
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
-            val newProcessMethod = shizukuClass.getMethod("newProcess", Array<String>::class.java)
-            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command)) as Process
+            val newProcessMethod = shizukuClass.getMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
             val stdout = BufferedReader(InputStreamReader(process.inputStream)).readText()
             val stderr = BufferedReader(InputStreamReader(process.errorStream)).readText()
             val finished = process.waitFor(30, TimeUnit.SECONDS)

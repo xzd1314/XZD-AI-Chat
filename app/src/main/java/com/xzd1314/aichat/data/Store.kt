@@ -126,11 +126,26 @@ class Store private constructor(context: Context) {
     fun setReasoningEffort(e: String) = prefs.edit().putString(KEY_REASONING, e).apply()
     fun getReasoningEffort(): String = prefs.getString(KEY_REASONING, "") ?: ""
 
+    // 部署模式：cloud=云端API，local=本地部署
+    fun setDeploymentMode(mode: String) = prefs.edit().putString(KEY_DEPLOYMENT_MODE, mode).apply()
+    fun getDeploymentMode(): String = prefs.getString(KEY_DEPLOYMENT_MODE, "cloud") ?: "cloud"
+    fun setLastCloudProvider(id: String) = prefs.edit().putString(KEY_LAST_CLOUD_PROVIDER, id).apply()
+    fun getLastCloudProvider(): String = prefs.getString(KEY_LAST_CLOUD_PROVIDER, "deepseek") ?: "deepseek"
+
+    // ===== 主题与显示 =====
+    fun setThemeMode(mode: String) = prefs.edit().putString(KEY_THEME_MODE, mode).apply()
+    fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, "system") ?: "system"
+    fun setDynamicColor(enabled: Boolean) = prefs.edit().putBoolean(KEY_DYNAMIC_COLOR, enabled).apply()
+    fun isDynamicColor(): Boolean = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
+    fun setHapticsEnabled(enabled: Boolean) = prefs.edit().putBoolean(KEY_HAPTICS, enabled).apply()
+    fun isHapticsEnabled(): Boolean = prefs.getBoolean(KEY_HAPTICS, true)
+
     fun getResolvedProvider(): ModelPreset = ModelPresets.get(getProviderId())
     fun getResolvedModelName(): String =
         if (getModelName().isNotBlank()) getModelName() else getResolvedProvider().defaultModel
     fun getResolvedBaseUrl(): String =
-        if (getBaseUrl().isNotBlank()) getBaseUrl() else getResolvedProvider().baseUrl
+        if (getDeploymentMode() == "local" && getBaseUrl().isNotBlank()) getBaseUrl()
+        else getResolvedProvider().baseUrl
 
     // ===== API Key XOR 加密存储 =====
     private val xorKey = byteArrayOf(0x5A, 0x33, 0x64, 0x31, 0x33, 0x31, 0x34, 0x78)
@@ -285,11 +300,16 @@ class Store private constructor(context: Context) {
         private const val KEY_STAT_COUNT = "stat_count"
         private const val KEY_STAT_TOTAL = "stat_total"
         private const val KEY_REASONING = "reasoning_effort"
+        private const val KEY_DEPLOYMENT_MODE = "deployment_mode"
+        private const val KEY_LAST_CLOUD_PROVIDER = "last_cloud_provider"
         private const val KEY_APIKEY_ENC = "api_key_enc"
         private const val KEY_PROMPT_TPLS = "prompt_templates"
         private const val KEY_CMD_HISTORY = "command_history"
         private const val KEY_TOKEN_USAGE = "token_usage"
         private const val KEY_SCHEDULED = "scheduled_tasks"
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_DYNAMIC_COLOR = "dynamic_color"
+        private const val KEY_HAPTICS = "haptics_enabled"
 
         private const val DEFAULT_SYSTEM_PROMPT =
             "你是 XZD AI Chat 中的 AI 助手，名字叫小蓝。回答简洁、准确、友好，用简体中文。"

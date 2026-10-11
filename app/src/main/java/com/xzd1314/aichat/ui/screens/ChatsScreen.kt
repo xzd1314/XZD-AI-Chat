@@ -20,8 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.outlined.ChatBubble
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -57,16 +59,17 @@ fun ChatsScreen(
     onOpen: (String) -> Unit,
     onNew: () -> Unit,
     onDelete: (String) -> Unit,
+    onPin: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var query by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<Conversation?>(null) }
 
-    val filtered = if (query.isBlank()) conversations
+    val filtered = (if (query.isBlank()) conversations
     else conversations.filter {
         it.title.contains(query, true) ||
             it.messages.lastOrNull()?.content?.contains(query, true) == true
-    }
+    }).sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.updatedAt })
 
     Scaffold(
         modifier = modifier,
@@ -109,7 +112,7 @@ fun ChatsScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            Icons.Filled.ChatBubbleOutline,
+                            Icons.Outlined.ChatBubble,
                             contentDescription = null,
                             modifier = Modifier.size(72.dp),
                             tint = MaterialTheme.colorScheme.outline
@@ -137,7 +140,8 @@ fun ChatsScreen(
                             modifier = Modifier,
                             conv = conv,
                             onClick = { onOpen(conv.id) },
-                            onDelete = { deleteTarget = conv }
+                            onDelete = { deleteTarget = conv },
+                            onPin = { onPin(conv.id) }
                         )
                     }
                 }
@@ -148,7 +152,7 @@ fun ChatsScreen(
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            icon = { Icon(Icons.Filled.DeleteOutline, null) },
+            icon = { Icon(Icons.Outlined.Delete, null) },
             title = { Text("删除对话") },
             text = { Text("确定删除「${target.title}」吗？其中 ${target.messages.size} 条消息将一并清除。") },
             confirmButton = {
@@ -170,6 +174,7 @@ fun ConversationCard(
     conv: Conversation,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onPin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val last = conv.messages.lastOrNull()
@@ -213,9 +218,17 @@ fun ConversationCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            IconButton(onClick = onPin) {
+                Icon(
+                    if (conv.pinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                    contentDescription = if (conv.pinned) "取消置顶" else "置顶",
+                    tint = if (conv.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             IconButton(onClick = onDelete) {
                 Icon(
-                    Icons.Filled.DeleteOutline,
+                    Icons.Outlined.Delete,
                     contentDescription = "删除",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )

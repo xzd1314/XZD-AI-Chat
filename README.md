@@ -5,15 +5,17 @@
 ## 功能特性
 
 ### 聊天模式
-- 支持 OpenAI 兼容 API（DeepSeek、Moonshot、智谱、通义、Kimi 等）
-- 多会话管理，每会话独立风格和上下文
-- 12+ 种聊天风格预设（极简、终端、樱花、赛博朋克等）
-- 思考过程展示（支持 reasoning 模型）
-- Markdown 渲染、代码高亮
+- 支持 OpenAI 兼容 API（DeepSeek、Moonshot、智谱、通义、Kimi 等 13 家）
+- 多会话管理，每会话独立风格和上下文，支持置顶
+- 12+ 种聊天风格预设（极简、终端、樱花、赛博朋克、微信等）
+- 思考过程展示（支持 reasoning 模型，可折叠）
+- Markdown 渲染（代码块、粗体、列表、标题），代码一键复制
+- 消息操作：长按复制、重新生成、删除单条、发送中可停止
 - 语音输入（需系统语音识别服务）
-- 导出会话为 Markdown / 纯文本 / 长图
+- 导出会话为 Markdown / 纯文本 / 长图分享
 - 提示词模板管理
 - 定时任务（定时发送消息）
+- 会话内搜索
 
 ### Agent 模式
 - 通过自然语言或 Shell 命令控制 Android 设备
@@ -25,9 +27,13 @@
 
 ### 其他
 - 云端 API / 本地部署模式切换（支持 Ollama、llama.cpp、vLLM）
+- 主题模式切换：跟随系统 / 浅色 / 深色
+- Material You 动态取色（Android 12+，跟随壁纸）
+- 震动反馈开关
 - 全部数据本地存储，无云端同步
-- Material You 设计，严格遵循 Material 3 规范
+- Material 3 设计，完整 Typography + Shape + Color 方案
 - 前缀缓存优化，降低 Token 消耗
+- StringFog XOR 字符串加密 + 反篡改检测
 
 ## 截图
 

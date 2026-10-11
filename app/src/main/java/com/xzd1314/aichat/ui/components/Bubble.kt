@@ -56,6 +56,7 @@ fun ChatBubble(
     avatarUri: String?,
     reasoning: String? = null,
     imageUri: String? = null,
+    name: String = "小蓝",
     modifier: Modifier = Modifier
 ) {
     // 进入动画：淡入 + 上移
@@ -105,7 +106,7 @@ fun ChatBubble(
         Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             if (style.showNameLabel && !isMine) {
                 Text(
-                    "小蓝",
+                    name,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
@@ -117,7 +118,7 @@ fun ChatBubble(
                     Modifier
                         .widthIn(max = (style.bubbleMaxWidthPct * 3.6).dp)
                         .background(
-                            if (style.isDark) Color(0xFF1A3326) else Color(0xFFE8E4D6),
+                            MaterialTheme.colorScheme.surfaceVariant,
                             RoundedCornerShape(12.dp, 12.dp, 4.dp, 12.dp)
                         )
                         .clickable { reasoningExpanded = !reasoningExpanded }
@@ -128,21 +129,21 @@ fun ChatBubble(
                             Icon(
                                 Icons.Filled.Psychology,
                                 contentDescription = null,
-                                tint = if (style.isDark) Color(0xFFC9A961) else Color(0xFF8B5A3C),
+                                tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(Modifier.width(5.dp))
                             Text(
                                 "思考过程",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (style.isDark) Color(0xFFC9A961) else Color(0xFF8B5A3C),
+                                color = MaterialTheme.colorScheme.tertiary,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                             )
                             Spacer(Modifier.weight(1f))
                             Icon(
                                 Icons.Filled.ExpandMore,
                                 contentDescription = null,
-                                tint = if (style.isDark) Color(0xFFC9A961) else Color(0xFF8B5A3C),
+                                tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(16.dp).rotate(arrowRotation)
                             )
                         }
@@ -151,7 +152,7 @@ fun ChatBubble(
                                 Text(
                                     reasoning,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (style.isDark) Color(0xFF9AA898) else Color(0xFF5A6B5E),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontStyle = FontStyle.Italic,
                                     lineHeight = 18.sp
                                 )
@@ -190,12 +191,20 @@ fun ChatBubble(
                             )
                         }
                     } else {
-                        Text(
-                            text,
-                            color = textColor,
-                            fontSize = style.fontSize.sp,
-                            lineHeight = (style.fontSize * 1.45).sp
-                        )
+                        if (isMine) {
+                            Text(
+                                text,
+                                color = textColor,
+                                fontSize = style.fontSize.sp,
+                                lineHeight = (style.fontSize * 1.45).sp
+                            )
+                        } else {
+                            MarkdownText(
+                                text = text,
+                                textColor = textColor,
+                                fontSize = style.fontSize
+                            )
+                        }
                     }
                 }
             }

@@ -1,3 +1,12 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.github.megatronking.stringfog:gradle-plugin:5.2.0")
+        classpath("com.github.megatronking.stringfog:xor:5.0.0")
+    }
+}
 plugins {
     id("com.android.application") version "8.6.1" apply false
     id("org.jetbrains.kotlin.android") version "1.9.24" apply false

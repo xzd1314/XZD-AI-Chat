@@ -33,10 +33,14 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +49,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +70,7 @@ import com.xzd1314.aichat.data.ModelPresets
 import com.xzd1314.aichat.net.LLMClient
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -76,7 +83,6 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     var baseUrl by remember { mutableStateOf(store.getBaseUrl()) }
     var ctxCount by remember { mutableStateOf(store.getContextCount()) }
     var maxTokens by remember { mutableStateOf(store.getMaxTokens()) }
-    var temperature by remember { mutableStateOf(store.getTemperature()) }
     var systemPrompt by remember { mutableStateOf(store.getSystemPrompt()) }
     var cacheOpt by remember { mutableStateOf(store.isCacheOptimized()) }
     var reasoningEffort by remember { mutableStateOf(store.getReasoningEffort()) }
@@ -93,20 +99,32 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     // 本地模型
     var localModelUrl by remember { mutableStateOf(store.getBaseUrl()) }
     var localModelName by remember { mutableStateOf(store.getModelName()) }
+    var deploymentMode by remember { mutableStateOf(store.getDeploymentMode()) }
+    // 主题与显示
+    var themeMode by remember { mutableStateOf(store.getThemeMode()) }
+    var dynamicColor by remember { mutableStateOf(store.isDynamicColor()) }
+    var hapticsEnabled by remember { mutableStateOf(store.isHapticsEnabled()) }
 
     val provider = ModelPresets.get(providerId)
 
     Scaffold(
         modifier = modifier,
         topBar = {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                Text("设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "模型接入 · 上下文 · 缓存优化",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("设置", fontWeight = FontWeight.Bold)
+                        Text(
+                            "模型接入 · 上下文 · 缓存优化",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-            }
+            )
         }
     ) { padding ->
         Column(
@@ -220,13 +238,6 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     value = maxTokens.toFloat(), range = 256f..8192f, step = 256f,
                     display = "$maxTokens",
                     onChange = { maxTokens = it.toInt(); store.setMaxTokens(it.toInt()) }
-                )
-                SliderItem(
-                    label = "温度",
-                    desc = "越低越稳定，越高越有创意",
-                    value = temperature, range = 0f..2f, step = 0.1f,
-                    display = "%.1f".format(temperature),
-                    onChange = { temperature = it; store.setTemperature(it) }
                 )
             }
 
@@ -483,32 +494,134 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 }) { Text("添加定时任务") }
             }
 
-            // ===== 本地模型接入 =====
-            SectionCard(title = "本地模型接入", icon = Icons.Filled.Memory) {
-                Text("接入局域网内的 llama.cpp / Ollama 等本地模型，断网也能用。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // ===== 部署模式 =====
+            SectionCard(title = "部署模式", icon = Icons.Filled.Memory) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (deploymentMode == "local") "本地部署模式" else "云端 API 模式",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            if (deploymentMode == "local") "使用局域网内的本地模型服务" else "使用云端 API 服务商",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = deploymentMode == "local",
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                // 切换到本地模式：校验 URL
+                                val url = localModelUrl.trim()
+                                if (url.isEmpty() || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                                    android.widget.Toast.makeText(context, "请先填写有效的本地端点 URL（需以 http:// 或 https:// 开头）", android.widget.Toast.LENGTH_LONG).show()
+                                    return@Switch
+                                }
+                                store.setLastCloudProvider(store.getProviderId())
+                                store.setBaseUrl(url)
+                                store.setModelName(localModelName)
+                                store.setProviderId("custom")
+                                store.setDeploymentMode("local")
+                                deploymentMode = "local"
+                                android.widget.Toast.makeText(context, "已切换到本地部署模式", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                // 切换回云端模式
+                                val lastProvider = store.getLastCloudProvider()
+                                store.setProviderId(lastProvider)
+                                store.setDeploymentMode("cloud")
+                                deploymentMode = "cloud"
+                                android.widget.Toast.makeText(context, "已切换到云端 API 模式", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
+                if (deploymentMode == "local") {
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = localModelUrl,
+                        onValueChange = { localModelUrl = it },
+                        label = { Text("本地端点 URL（如 http://192.168.1.100:11434/v1/chat/completions）") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = localModelName,
+                        onValueChange = { localModelName = it },
+                        label = { Text("本地模型名（如 llama3.2、qwen2.5-7b）") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "支持 llama.cpp、Ollama、vLLM 等 OpenAI 兼容接口。修改 URL/模型名后需重新切换开关生效。",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // ===== 主题与显示 =====
+            SectionCard(title = "主题与显示", icon = Icons.Filled.Palette) {
+                // 主题模式
+                Text("主题模式", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEach { (mode, label) ->
+                        val selected = themeMode == mode
+                        androidx.compose.material3.FilterChip(
+                            selected = selected,
+                            onClick = {
+                                themeMode = mode
+                                store.setThemeMode(mode)
+                                (context as? android.app.Activity)?.recreate()
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                // 动态取色
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Material You 动态取色", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                        Text("跟随系统壁纸配色（Android 12+）", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = dynamicColor,
+                        onCheckedChange = {
+                            dynamicColor = it
+                            store.setDynamicColor(it)
+                            (context as? android.app.Activity)?.recreate()
+                        }
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = localModelUrl,
-                    onValueChange = { localModelUrl = it; store.setBaseUrl(it) },
-                    label = { Text("本地端点 URL（如 http://192.168.1.100:11434/v1/chat/completions）") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = localModelName,
-                    onValueChange = { localModelName = it; store.setModelName(it) },
-                    label = { Text("本地模型名（如 llama3.2、qwen2.5-7b）") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(6.dp))
-                TextButton(onClick = {
-                    store.setProviderId("custom")
-                    android.widget.Toast.makeText(context, "已切换到本地模型", android.widget.Toast.LENGTH_SHORT).show()
-                }) { Text("启用本地模型") }
+                // 震动反馈
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("震动反馈", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                        Text("发送消息、切换页面时震动", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = hapticsEnabled,
+                        onCheckedChange = {
+                            hapticsEnabled = it
+                            store.setHapticsEnabled(it)
+                        }
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -536,7 +649,7 @@ private fun SectionCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)

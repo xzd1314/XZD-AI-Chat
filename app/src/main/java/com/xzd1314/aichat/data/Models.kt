@@ -39,6 +39,7 @@ data class Conversation(
     var stylePresetId: String,     // 关联的预设 id（用于显示名称）
     var createdAt: Long,
     var updatedAt: Long,
+    var pinned: Boolean = false,   // 置顶
     val messages: MutableList<ChatMessage>
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -49,6 +50,7 @@ data class Conversation(
         put("presetId", stylePresetId)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
+        put("pinned", pinned)
         val arr = JSONArray()
         messages.forEach { arr.put(it.toJson()) }
         put("messages", arr)
@@ -63,6 +65,7 @@ data class Conversation(
             stylePresetId = o.optString("presetId", "minimal"),
             createdAt = o.optLong("createdAt", 0L),
             updatedAt = o.optLong("updatedAt", 0L),
+            pinned = o.optBoolean("pinned", false),
             messages = run {
                 val arr = o.optJSONArray("messages") ?: JSONArray()
                 val list = mutableListOf<ChatMessage>()
@@ -134,7 +137,8 @@ data class AgentMessage(
     val resultStdout: String? = null,
     val resultStderr: String? = null,
     val resultExitCode: Int? = null,
-    val resultMode: String? = null
+    val resultMode: String? = null,
+    val reasoning: String? = null
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("role", role)
@@ -145,6 +149,7 @@ data class AgentMessage(
         if (resultStderr != null) put("rerr", resultStderr)
         if (resultExitCode != null) put("rcode", resultExitCode)
         if (resultMode != null) put("rmode", resultMode)
+        if (reasoning != null) put("reasoning", reasoning)
     }
     companion object {
         fun fromJson(o: JSONObject): AgentMessage = AgentMessage(
@@ -155,7 +160,8 @@ data class AgentMessage(
             resultStdout = o.optString("rout").takeIf { it.isNotBlank() },
             resultStderr = o.optString("rerr").takeIf { it.isNotBlank() },
             resultExitCode = if (o.has("rcode")) o.optInt("rcode") else null,
-            resultMode = o.optString("rmode").takeIf { it.isNotBlank() }
+            resultMode = o.optString("rmode").takeIf { it.isNotBlank() },
+            reasoning = o.optString("reasoning").takeIf { it.isNotBlank() }
         )
     }
 }
@@ -166,13 +172,15 @@ data class AgentConversation(
     var title: String,
     val messages: MutableList<AgentMessage>,
     val createdAt: Long,
-    var updatedAt: Long
+    var updatedAt: Long,
+    var stylePresetId: String = "minimal"
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("title", title)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
+        put("stylePresetId", stylePresetId)
         put("messages", JSONArray(messages.map { it.toJson() }))
     }
     companion object {
@@ -186,7 +194,8 @@ data class AgentConversation(
                 title = o.optString("title", "新 Agent 会话"),
                 messages = msgs,
                 createdAt = o.optLong("createdAt", System.currentTimeMillis()),
-                updatedAt = o.optLong("updatedAt", System.currentTimeMillis())
+                updatedAt = o.optLong("updatedAt", System.currentTimeMillis()),
+                stylePresetId = o.optString("stylePresetId", "minimal")
             )
         }
     }

@@ -66,6 +66,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         persistAgent()
     }
 
+    fun setAgentStylePreset(id: String, presetId: String) {
+        _agentConvs.value = _agentConvs.value.map {
+            if (it.id == id) it.copy(stylePresetId = presetId, updatedAt = System.currentTimeMillis()) else it
+        }
+        persistAgent()
+    }
+
+    fun clearAgentMessages(id: String) {
+        _agentConvs.value = _agentConvs.value.map {
+            if (it.id == id) it.copy(messages = mutableListOf(), updatedAt = System.currentTimeMillis()) else it
+        }
+        persistAgent()
+    }
+
     private fun persistAgent() = store.saveAgentConvs(_agentConvs.value)
 
     /** 当前打开的会话 id */
@@ -125,6 +139,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessages(id: String) {
         _convs.value = _convs.value.map {
             if (it.id == id) it.copy(messages = mutableListOf(), updatedAt = System.currentTimeMillis()) else it
+        }
+        persist()
+    }
+
+    fun deleteMessage(id: String, index: Int) {
+        _convs.value = _convs.value.map {
+            if (it.id == id && index in it.messages.indices) {
+                it.copy(
+                    messages = it.messages.toMutableList().apply { removeAt(index) },
+                    updatedAt = System.currentTimeMillis()
+                )
+            } else it
+        }
+        persist()
+    }
+
+    fun togglePin(id: String) {
+        _convs.value = _convs.value.map {
+            if (it.id == id) it.copy(pinned = !it.pinned, updatedAt = System.currentTimeMillis()) else it
         }
         persist()
     }

@@ -125,11 +125,19 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
+        // 尽早初始化 Shizuku binder 监听，否则进 Agent 页才注册会导致 checkSelfPermission 永远 DENIED
+        com.xzd1314.aichat.agent.ShellExecutor.initShizuku(this)
         // 主动申请所有权限
         requestAllPermissions()
         enableEdgeToEdge()
         setContent {
-            XZDChatTheme {
+            val store = com.xzd1314.aichat.data.Store.get(this)
+            val themeMode = store.getThemeMode()
+            val dynamicColor = store.isDynamicColor()
+            XZDChatTheme(
+                themeMode = themeMode,
+                dynamicColor = dynamicColor
+            ) {
                 App()
             }
         }
@@ -226,7 +234,8 @@ fun App(vm: AppViewModel = viewModel()) {
                             conversations = convs,
                             onOpen = { id -> nav.navigate("chat/$id") },
                             onNew = { vm.addConversation() },
-                            onDelete = { vm.deleteConversation(it) }
+                            onDelete = { vm.deleteConversation(it) },
+                            onPin = { vm.togglePin(it) }
                         )
                         "agent" -> AgentListScreen(
                             vm = vm,
