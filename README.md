@@ -87,6 +87,17 @@ keyPassword=your-key-password
 
 将 `.jks` 文件放在项目根目录，然后执行 `./gradlew assembleRelease`。
 
+### 反篡改签名校验（可选）
+
+应用内置签名校验，防止重打包。`app/src/main/java/com/xzd1314/aichat/security/SignatureConfig.kt` 中：
+- `EXPECTED_SIGNATURE_SHA256 = ""`（默认）：跳过校验，自构建版本可直接运行
+- 填入你的签名证书 SHA-256：启用校验，签名不匹配时应用自动退出
+
+获取签名 SHA-256：
+```bash
+keytool -list -v -keystore your-keystore.jks -alias your-alias | grep SHA256
+```
+
 ## 配置
 
 ### API 配置

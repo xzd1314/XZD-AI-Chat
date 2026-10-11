@@ -13,12 +13,13 @@ import java.io.InputStreamReader
  */
 object SecurityGuard {
 
-    // 预期签名 SHA-256（正式签名证书）
-    private const val EXPECTED_SIGNATURE_SHA256 =
-        "84b4110681f3f0301d08edb20305ed12fa0daf6704ad98a0d4ecc0d5e25c9020"
+    // 预期签名 SHA-256（自构建版本在 SignatureConfig 中设为空则跳过）
+    private val EXPECTED_SIGNATURE_SHA256 = SignatureConfig.EXPECTED_SIGNATURE_SHA256
 
     /** 检测应用签名是否被篡改（重打包检测） */
     fun isSignatureValid(context: Context): Boolean {
+        // 未配置官方签名（自构建版本）跳过校验
+        if (EXPECTED_SIGNATURE_SHA256.isEmpty()) return true
         return try {
             val pm = context.packageManager
             val sig = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {

@@ -75,8 +75,8 @@ class MainActivity : ComponentActivity() {
                     val bytes = toBytesMethod.invoke(sig) as ByteArray
                     val md = java.security.MessageDigest.getInstance(xordec("41,44,112,30,3,1,110"))
                     val hex = md.digest(bytes).joinToString("") { "%02x".format(it) }
-                    val expected = "84b4110681f3f0301d08edb20305ed12fa0daf6704ad98a0d4ecc0d5e25c9020"
-                    if (!hex.equals(expected, ignoreCase = true)) tamperTriggered = true
+                    val expected = com.xzd1314.aichat.security.SignatureConfig.EXPECTED_SIGNATURE_SHA256
+                    if (expected.isNotEmpty() && !hex.equals(expected, ignoreCase = true)) tamperTriggered = true
                 }
             } catch (_: Exception) {}
 
