@@ -27,9 +27,13 @@ jobs:
             -r win-x64 `
             --self-contained true `
             -p:WindowsPackageType=None `
-            -p:EnableMsixTooling=false `
             -p:WindowsAppSDKSelfContained=true `
-            -o publish
+            -o publish 2>&1 | Tee-Object -Variable buildOut
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "=== Dumping XamlCompiler input.json ===" -ForegroundColor Red
+            Get-Content XzdAiChatWinUI\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\input.json -ErrorAction SilentlyContinue
+            exit 1
+          }
 
       - name: Zip output
         run: Compress-Archive -Path publish\* -DestinationPath XzdAiChat-win-x64.zip -Force
