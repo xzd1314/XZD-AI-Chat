@@ -1,0 +1,40 @@
+name: Build Windows Exe
+
+on:
+  push:
+    branches: [winui3-port]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained win-x64
+        run: |
+          dotnet publish XzdAiChatWinUI/XzdAiChatWinUI.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:WindowsPackageType=None `
+            -p:EnableMsixTooling=false `
+            -o publish
+
+      - name: Zip output
+        run: Compress-Archive -Path publish\* -DestinationPath XzdAiChat-win-x64.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: XzdAiChat-win-x64
+          path: XzdAiChat-win-x64.zip
+          if-no-files-found: error
