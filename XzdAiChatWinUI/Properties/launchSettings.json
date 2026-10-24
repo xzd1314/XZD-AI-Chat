@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "XzdAiChatWinUI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "XzdAiChatWinUI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

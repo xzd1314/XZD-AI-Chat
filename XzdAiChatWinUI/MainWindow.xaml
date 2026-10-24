@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="XzdAiChatWinUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="XZD AI Chat"
+    ExtendsContentIntoTitleBar="True"
+    SystemBackdrop="MicaBackdrop">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" MinWidth="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 左侧 -->
+        <Border Grid.Column="0" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="48" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Padding="12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="会话" VerticalAlignment="Center"
+                               Style="{ThemeResource TitleTextBlockStyle}" />
+                    <Button Grid.Column="1" Click="NewChatBtn_Click"
+                            ToolTipService.ToolTip="新对话"
+                            Style="{ThemeResource AccentButtonStyle}">
+                        <FontIcon Glyph="&#xE710;" />
+                    </Button>
+                </Grid>
+                <ScrollViewer Grid.Row="1" Padding="4,0">
+                    <StackPanel x:Name="ConvPanel" Spacing="2"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- 右侧 -->
+        <Grid Grid.Column="1" x:Name="ChatArea" Background="#FFFFFFFF">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" x:Name="TopBar" Background="#FFFFFFFF">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" x:Name="TitleText" Text="新对话"
+                           VerticalAlignment="Center" Margin="16,0,0,0"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+                <Button Grid.Column="1" Click="StyleBtn_Click" Margin="0,0,8,0"
+                        ToolTipService.ToolTip="切换聊天风格">
+                    <FontIcon Glyph="&#xE790;" />
+                </Button>
+                <Button Grid.Column="1" Click="SettingsBtn_Click" Margin="0,0,16,0"
+                        ToolTipService.ToolTip="设置">
+                    <FontIcon Glyph="&#xE713;" />
+                </Button>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" x:Name="MsgScroll" Padding="16,12">
+                <StackPanel x:Name="MsgPanel" Spacing="10"/>
+            </ScrollViewer>
+
+            <Border Grid.Row="1" x:Name="StreamingBubble"
+                    Visibility="Collapsed"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                    Margin="16,0,16,90" MaxWidth="720"
+                    Background="#FFE4E6E8" CornerRadius="12" Padding="12,10">
+                <StackPanel Spacing="6" MaxWidth="700">
+                    <RichTextBlock x:Name="ReasoningRich" Foreground="#FF888888"
+                                   FontSize="12" Visibility="Collapsed"/>
+                    <RichTextBlock x:Name="LiveRich" Foreground="#FF111111"
+                                   FontSize="15" IsTextSelectionEnabled="True"
+                                   TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Padding="12,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" x:Name="InputBox"
+                             PlaceholderText="输入消息，Enter 发送，Shift+Enter 换行"
+                             TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalContentAlignment="Center" MaxHeight="120"
+                             KeyDown="InputBox_KeyDown"/>
+                    <Button Grid.Column="1" Click="SendBtn_Click" Margin="8,0,0,0"
+                            Style="{ThemeResource AccentButtonStyle}" Content="发送"/>
+                    <Button Grid.Column="2" x:Name="StopBtn" Click="StopBtn_Click"
+                            Margin="8,0,0,0" Content="停止" Visibility="Collapsed"/>
+                </Grid>
+            </Border>
+
+            <!-- 设置面板 -->
+            <Border Grid.Row="0" Grid.RowSpan="3" x:Name="SettingsPanel"
+                    Visibility="Collapsed" Background="#99000000"
+                    Tapped="SettingsPanel_Tapped">
+                <Border Width="440" Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
+                        HorizontalAlignment="Right">
+                    <ScrollViewer Padding="20">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="设置" Style="{ThemeResource TitleTextBlockStyle}" Margin="0,0,0,8"/>
+                            <TextBlock Text="供应商"/>
+                            <ComboBox x:Name="ProviderCombo" HorizontalAlignment="Stretch" SelectionChanged="ProviderCombo_Changed"/>
+                            <TextBlock Text="API Key"/>
+                            <PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_Changed"/>
+                            <TextBlock Text="模型名（留空用默认）"/>
+                            <TextBox x:Name="ModelBox" TextChanged="ModelBox_Changed"/>
+                            <TextBlock Text="Base URL（覆盖默认，本地部署用）"/>
+                            <TextBox x:Name="BaseUrlBox" TextChanged="BaseUrlBox_Changed"/>
+                            <TextBlock Text="温度 (0-2)"/>
+                            <NumberBox x:Name="TempBox" Minimum="0" Maximum="2" SpinButtonPlacementMode="Inline" ValueChanged="TempBox_Changed"/>
+                            <TextBlock Text="上下文消息条数 (4-64)"/>
+                            <NumberBox x:Name="CtxBox" Minimum="4" Maximum="64" SpinButtonPlacementMode="Inline" ValueChanged="CtxBox_Changed"/>
+                            <TextBlock Text="最大输出 Token (256-8192)"/>
+                            <NumberBox x:Name="MaxTokBox" Minimum="256" Maximum="8192" SpinButtonPlacementMode="Inline" ValueChanged="MaxTokBox_Changed"/>
+                            <TextBlock Text="系统提示词"/>
+                            <TextBox x:Name="SysPromptBox" TextWrapping="Wrap" AcceptsReturn="True" Height="80" TextChanged="SysPrompt_Changed"/>
+                            <Button x:Name="TestBtn" Content="测试连接" Click="TestBtn_Click" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="TestResult" TextWrapping="Wrap" Text=""/>
+                            <Button Content="关闭" Click="CloseSettings_Click" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
