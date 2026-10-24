@@ -4,8 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="XZD AI Chat"
-    ExtendsContentIntoTitleBar="True"
-    SystemBackdrop="MicaBackdrop">
+    ExtendsContentIntoTitleBar="True">
 
     <Grid>
         <Grid.ColumnDefinitions>

@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         this.InitializeComponent();
+        try { this.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop(); } catch { }
         Vm = new MainViewModel();
 
         Vm.PropertyChanged += Vm_PropertyChanged;
