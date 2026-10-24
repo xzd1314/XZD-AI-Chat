@@ -1,18 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
-using Windows.UI.Text;
 
 namespace XzdAiChatWinUI.ui;
 
 /// <summary>
 /// 极简 Markdown → RichTextBlock 渲染器。
-/// 支持：代码块 ```、行内代码 `、**粗体**、*斜体*、标题 #/##/###、无序列表 -、换行。
+/// 支持：代码块 ```、行内代码 `、**粗体**、标题 #/##/###、无序列表 -。
 /// </summary>
 public static class MarkdownRender
 {
@@ -30,7 +30,7 @@ public static class MarkdownRender
         {
             if (paraBuf.Length == 0) return;
             var p = new Paragraph();
-            p.Inlines.AddRange(ParseInline(paraBuf.ToString()));
+            foreach (var il in ParseInline(paraBuf.ToString())) p.Inlines.Add(il);
             rich.Blocks.Add(p);
             paraBuf.Clear();
         }
@@ -81,7 +81,7 @@ public static class MarkdownRender
                 var p = new Paragraph();
                 p.Inlines.Add(new Run { Text = "  •  ", Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0x88, 0x88, 0x88)) });
                 var rest = line.TrimStart().Substring(2);
-                p.Inlines.AddRange(ParseInline(rest));
+                foreach (var il in ParseInline(rest)) p.Inlines.Add(il);
                 rich.Blocks.Add(p);
                 continue;
             }
@@ -95,14 +95,12 @@ public static class MarkdownRender
     private static void AddHeading(RichTextBlock rich, string text, double size, FontWeight weight)
     {
         var p = new Paragraph();
-        var r = new Run { Text = text, FontSize = size, FontWeight = weight };
-        p.Inlines.Add(r);
+        p.Inlines.Add(new Run { Text = text, FontSize = size, FontWeight = weight });
         rich.Blocks.Add(p);
     }
 
     private static List<Inline> ParseInline(string text)
     {
-        // 处理 `code`、**bold**、*italic*
         var list = new List<Inline>();
         int i = 0;
         var buf = new StringBuilder();
@@ -124,7 +122,6 @@ public static class MarkdownRender
                     {
                         Text = text.Substring(i + 1, end - i - 1),
                         FontFamily = new FontFamily("Consolas, monospace"),
-                        Background = new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x88, 0x88)),
                         FontSize = 13,
                     });
                     i = end + 1;

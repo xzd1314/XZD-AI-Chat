@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
+using Windows.UI.Core;
 using XzdAiChatWinUI.data;
 using XzdAiChatWinUI.ui;
 using XzdAiChatWinUI.viewmodels;
@@ -25,13 +26,11 @@ public sealed partial class MainWindow : Window
         Vm = new MainViewModel();
 
         Vm.PropertyChanged += Vm_PropertyChanged;
-        Loaded += (_, _) =>
-        {
-            ReloadProviderCombo();
-            SyncSettingsToUi();
-            ReloadConversations();
-            ReloadMessages();
-        };
+
+        ReloadProviderCombo();
+        SyncSettingsToUi();
+        ReloadConversations();
+        ReloadMessages();
     }
 
     // ---------- 会话列表 ----------
@@ -196,17 +195,17 @@ public sealed partial class MainWindow : Window
         ReloadMessages();
     }
 
-    private void InputBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    private async void InputBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            var shiftState = Windows.UI.Core.CoreWindow.GetForCurrentThread()
+            var shiftState = CoreWindow.GetForCurrentThread()
                 .GetKeyState(Windows.System.VirtualKey.Shift);
-            bool shiftDown = (shiftState & Windows.UI.Core.VirtualKeyStates.Down) != 0;
+            bool shiftDown = (shiftState & CoreVirtualKeyStates.Down) != 0;
             if (!shiftDown)
             {
                 e.Handled = true;
-                _ = SendBtn_Click(sender, e);
+                await SendBtn_Click(sender, e);
             }
         }
     }

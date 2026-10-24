@@ -94,7 +94,7 @@
                              TextWrapping="Wrap" AcceptsReturn="True"
                              VerticalContentAlignment="Center" MaxHeight="120"
                              KeyDown="InputBox_KeyDown"/>
-                    <Button Grid.Column="1" Click="SendBtn_Click" Margin="8,0,0,0"
+                    <Button Grid.Column="1" x:Name="SendBtn" Click="SendBtn_Click" Margin="8,0,0,0"
                             Style="{ThemeResource AccentButtonStyle}" Content="发送"/>
                     <Button Grid.Column="2" x:Name="StopBtn" Click="StopBtn_Click"
                             Margin="8,0,0,0" Content="停止" Visibility="Collapsed"/>
