@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
             {
                 Background = c == Vm.CurrentConversation
                     ? new SolidColorBrush(Color.FromArgb(0x22, 0x88, 0x88, 0x88))
-                    : new SolidColorBrush(Windows.UI.Colors.Transparent),
+                    : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 8, 10, 8),
@@ -61,7 +61,7 @@ public sealed partial class MainWindow : Window
             var del = new Button
             {
                 Content = "✕",
-                Background = new SolidColorBrush(Windows.UI.Colors.Transparent),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Color.FromArgb(0xAA, 0x88, 0x88, 0x88)),
