@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: .
     steps:
       - uses: actions/checkout@v4
 
@@ -19,28 +16,22 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained win-x64
+      - name: Publish
+        shell: pwsh
         run: |
-          dotnet publish XzdAiChatWinUI/XzdAiChatWinUI.csproj `
-            -c Release `
-            -p:Platform=x64 `
-            -r win-x64 `
-            --self-contained true `
-            -p:WindowsPackageType=None `
-            -p:WindowsAppSDKSelfContained=true `
-            -o publish 2>&1 | Tee-Object -Variable buildOut
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "=== Dumping XamlCompiler input.json ===" -ForegroundColor Red
-            Get-Content XzdAiChatWinUI\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\input.json -ErrorAction SilentlyContinue
+          $ErrorActionPreference = "Continue"
+          dotnet publish XzdAiChatWinUI/XzdAiChatWinUI.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -p:WindowsPackageType=None -o publish 2>&1 | Out-String -Stream | Write-Host
+          Write-Host "Exit code: $LASTEXITCODE"
+          if (Test-Path publish/XzdAiChat.exe) {
+            Compress-Archive -Path publish\* -DestinationPath XzdAiChat-win-x64.zip -Force
+          } else {
+            Write-Host "No exe produced"
             exit 1
           }
 
-      - name: Zip output
-        run: Compress-Archive -Path publish\* -DestinationPath XzdAiChat-win-x64.zip -Force
-
       - name: Upload artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: XzdAiChat-win-x64
           path: XzdAiChat-win-x64.zip
-          if-no-files-found: error
